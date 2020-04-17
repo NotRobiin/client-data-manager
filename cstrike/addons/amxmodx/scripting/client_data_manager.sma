@@ -1,14 +1,10 @@
 /*	[ Setup ]	*/
 
 // Full path (base cstrike/) for the json file to be saved at.
-static const SaveFile[] = "addons/amxmodx/data/client_data.json";
+static const DefaultSaveFile[] = "addons/amxmodx/data/client_data.json";
 
 // Whether save json in the pretty style.
 static const bool:SavePretty = true;
-
-// How often to save json object.
-// Only if SAVE_ON_INTERVAL.
-static const Float:SaveInterval = 30.0;
 
 /*	[ Setup ]	*/
 
@@ -19,44 +15,50 @@ static const Float:SaveInterval = 30.0;
 
 #pragma semicolon 1
 
+#define ForRange(%1,%2,%3) for(new %1 = %2; %1 <= %3; %1++)
 #define ForArray(%1,%2) for(new %1 = 0; %1 < sizeof %2; %1++)
 
-enum _:SaveTypeEnumerator (<<= 1)
-{
-	SAVE_EVERY_ROUND = 1,
-	SAVE_EVERY_DISCONNECT,
-	SAVE_ON_MAP_END,
-	SAVE_ON_INTERVAL,
-	SAVE_NEVER
-};
+#define MAX_KEY_LENGTH 100
+#define MAX_FILE_NAME 30
+#define MAX_SESSIONS 10
 
 enum _:ExceptionsEnumerator (+= 1337)
 {
 	InvalidArgumentsGiven = -77_33_33_11,
+	InvalidSessionGiven,
 	PlayerNotConnected
 };
 
-#define MAX_KEY_LENGTH 100
+enum _:SessionSettingsEnumerator (+= 1)
+{
+	JSON:ss_handle,
+	ss_id,
+	ss_file[MAX_FILE_NAME + 1]
+};
 
 
-// Bitsum of save types.
-static const SaveType = (SAVE_ON_MAP_END);
-
-
-new JSON:json_handle;
+new sessions[MAX_SESSIONS + 1][SessionSettingsEnumerator],
+	active_sessions;
 
 /*		[ Forwards ]		*/
 public plugin_init()
 {
 	register_plugin("Client data manager (JSON)", "v1.3", AUTHOR);
 
-	register_event("HLTV", "new_round", "a", "1=0", "2=0");
+	// This is the global json session.
+	// It is used when you don't want to create a separate session
+	// for the plugin.
+	// Global session is ALWAYS the 1st element of array (0).
+	sessions[0][ss_handle] = create_json(DefaultSaveFile);
+	sessions[0][ss_id] = active_sessions;
+	copy(sessions[0][ss_file], MAX_FILE_NAME, DefaultSaveFile);
+	active_sessions++;
 
-	json_handle = create_json(SaveFile);
-
-	if(should_save_now(SAVE_ON_INTERVAL))
+	// Make sure rest of the sessions are set to invalid ones.
+	// Helps with "is_valid_session" function.
+	ForRange(i, 1, MAX_SESSIONS)
 	{
-		set_task(SaveInterval, "save_on_interval");
+		sessions[0][ss_handle] = Invalid_JSON;
 	}
 }
 
@@ -81,98 +83,111 @@ public plugin_natives()
 	register_native("get_user_data_char", "native_get_user_data_char", 0);
 
 	register_native("escape_key", "native_escape_key", 0);
+
+	register_native("create_session", "native_create_session", 0);
+	register_native("get_global_session", "native_get_global_session", 0);
+	register_native("is_valid_session", "native_is_valid_session", 0);
 }
 
 public plugin_end()
 {
-	if(!should_save_now(SAVE_ON_MAP_END))
+	ForRange(i, 0, active_sessions - 1)
 	{
-		return;
+		save_json(sessions[i][ss_handle], DefaultSaveFile);
 	}
-
-	save_json(json_handle, SaveFile);
-}
-
-public client_disconnected(index)
-{
-	if(!should_save_now(SAVE_EVERY_DISCONNECT))
-	{
-		return;
-	}
-
-	save_json(json_handle, SaveFile);
-}
-
-public new_round()
-{
-	if(!should_save_now(SAVE_EVERY_ROUND))
-	{
-		return;
-	}
-
-	save_json(json_handle, SaveFile);
-}
-
-public save_on_interval()
-{
-	save_json(json_handle, SaveFile);
 }
 
 /*		[ Natives ]			*/
 public bool:native_save_data_int(plugin, params)
 {
-	if(!check_params("save_data_int", 2, params))
+	if(!check_params("save_data_int", 3, params))
 	{
 		return false;
 	}
 
-	static key[MAX_KEY_LENGTH + 1];
+	static key[MAX_KEY_LENGTH + 1],
+		s;
 
-	get_string(1, key, charsmax(key));
+	s = get_param(1);
 
-	return save_data_int(key, get_param(2));
+	// Invalid session.
+	if(!is_valid_sesion(s))
+	{
+		return false;
+	}
+
+	get_string(2, key, charsmax(key));
+
+	return save_data_int(sessions[s][ss_handle], key, get_param(3));
 }
 
 public native_get_data_int(plugin, params)
 {
-	if(!check_params("get_data_int", 1, params))
+	if(!check_params("get_data_int", 2, params))
 	{
 		return InvalidArgumentsGiven;
 	}
 
-	static key[MAX_KEY_LENGTH + 1];
+	static key[MAX_KEY_LENGTH + 1],
+		s;
 
-	get_string(1, key, charsmax(key));
+	s = get_param(1);
 
-	return get_data_int(key);
+	// Invalid session.
+	if(!is_valid_sesion(s))
+	{
+		return InvalidSessionGiven;
+	}
+
+	get_string(2, key, charsmax(key));
+
+	return get_data_int(sessions[s][ss_handle], key);
 }
 
 public bool:native_save_data_float(plugin, params)
 {
-	if(!check_params("save_data_float", 2, params))
+	if(!check_params("save_data_float", 3, params))
 	{
 		return false;
 	}
 
-	static key[MAX_KEY_LENGTH + 1];
+	static key[MAX_KEY_LENGTH + 1],
+		s;
 
-	get_string(1, key, charsmax(key));
+	s = get_param(1);
 
-	return save_data_float(key, get_param_f(2));
+	// Invalid session.
+	if(!is_valid_sesion(s))
+	{
+		return false;
+	}
+	
+	get_string(2, key, charsmax(key));
+
+	return save_data_float(sessions[s][ss_handle], key, get_param_f(3));
 }
 
 public Float:native_get_data_float(plugin, params)
 {
-	if(!check_params("get_data_float", 1, params))
+	if(!check_params("get_data_float", 2, params))
 	{
 		return Float:InvalidArgumentsGiven;
 	}
 
-	static key[MAX_KEY_LENGTH + 1];
+	static key[MAX_KEY_LENGTH + 1],
+		s;
 
-	get_string(1, key, charsmax(key));
+	s = get_param(1);
 
-	return get_data_float(key);
+	// Invalid session.
+	if(!is_valid_sesion(s))
+	{
+		return Float:InvalidSessionGiven;
+	}
+	
+	get_string(2, key, charsmax(key));
+
+	return get_data_float(sessions[s][ss_handle], key);
 }
 
 public bool:native_save_data_char(plugin, params)
@@ -183,17 +198,26 @@ public bool:native_save_data_char(plugin, params)
 	}
 
 	static key[MAX_KEY_LENGTH + 1],
-		value[MAX_KEY_LENGTH + 1];
+		value[MAX_KEY_LENGTH + 1],
+		s;
 
-	get_string(1, key, charsmax(key));
-	get_string(2, value, charsmax(value));
+	s = get_param(1);
 
-	return save_data_char(key, value);
+	// Invalid session.
+	if(!is_valid_sesion(s))
+	{
+		return false;
+	}
+	
+	get_string(2, key, charsmax(key));
+	get_string(3, value, charsmax(value));
+
+	return save_data_char(sessions[s][ss_handle], key, value);
 }
 
 public native_get_data_char(plugin, params)
 {
-	if(!check_params("get_data_char", 3, params))
+	if(!check_params("get_data_char", 4, params))
 	{
 		return InvalidArgumentsGiven;
 	}
@@ -201,93 +225,147 @@ public native_get_data_char(plugin, params)
 	static key[MAX_KEY_LENGTH + 1],
 		output[MAX_KEY_LENGTH + 1],
 		output_length,
-		return_value;
+		return_value,
+		s;
 
-	get_string(1, key, charsmax(key));
+	s = get_param(1);
 
-	output_length = get_param(3);
-	return_value = get_data_char(key, output, output_length);
+	// Invalid session.
+	if(!is_valid_sesion(s))
+	{
+		return InvalidSessionGiven;
+	}
+	
+	get_string(2, key, charsmax(key));
 
-	set_string(2, output, output_length);
+	output_length = get_param(4);
+	return_value = get_data_char(sessions[s][ss_handle], key, output, output_length);
+
+	set_string(3, output, output_length);
 
 	return return_value;
 }
 
 public bool:native_save_user_data_int(plugin, params)
 {
-	if(!check_params("save_user_data_int", 3, params))
-	{
-		return false;
-	}
-
-	static key[MAX_KEY_LENGTH + 1];
-
-	get_string(2, key, charsmax(key));
-
-	return save_user_data_int(get_param(1), key, get_param(3));
-}
-
-public native_get_user_data_int(plugin, params)
-{
-	if(!check_params("get_user_data_int", 2, params))
-	{
-		return InvalidArgumentsGiven;
-	}
-
-	static key[MAX_KEY_LENGTH + 1];
-
-	get_string(2, key, charsmax(key));
-
-	return get_user_data_int(get_param(1), key);
-}
-
-public bool:native_save_user_data_float(plugin, params)
-{
-	if(!check_params("save_user_data_float", 3, params))
-	{
-		return false;
-	}
-
-	static key[MAX_KEY_LENGTH + 1];
-
-	get_string(2, key, charsmax(key));
-
-	return save_user_data_float(get_param(1), key, get_param_f(3));
-}
-
-public Float:native_get_user_data_float(plugin, params)
-{
-	if(!check_params("get_user_data_float", 2, params))
-	{
-		return Float:InvalidArgumentsGiven;
-	}
-
-	static key[MAX_KEY_LENGTH + 1];
-
-	get_string(2, key, charsmax(key));
-
-	return get_user_data_float(get_param(1), key);
-}
-
-public bool:native_save_user_data_char(plugin, params)
-{
-	if(!check_params("save_user_data_char", 3, params))
+	if(!check_params("save_user_data_int", 4, params))
 	{
 		return false;
 	}
 
 	static key[MAX_KEY_LENGTH + 1],
-		value[MAX_KEY_LENGTH + 1];
+		s;
 
-	get_string(2, key, charsmax(key));
-	get_string(3, value, charsmax(value));
+	s = get_param(1);
 
-	return save_user_data_char(get_param(1), key, value);
+	// Invalid session.
+	if(!is_valid_sesion(s))
+	{
+		return false;
+	}
+	
+	get_string(3, key, charsmax(key));
+
+	return save_user_data_int(sessions[s][ss_handle], get_param(2), key, get_param(4));
+}
+
+public native_get_user_data_int(plugin, params)
+{
+	if(!check_params("get_user_data_int", 3, params))
+	{
+		return InvalidArgumentsGiven;
+	}
+
+	static key[MAX_KEY_LENGTH + 1],
+		s;
+
+	s = get_param(1);
+
+	// Invalid session.
+	if(!is_valid_sesion(s))
+	{
+		return InvalidSessionGiven;
+	}
+	
+	get_string(3, key, charsmax(key));
+
+	return get_user_data_int(sessions[s][ss_handle], get_param(2), key);
+}
+
+public bool:native_save_user_data_float(plugin, params)
+{
+	if(!check_params("save_user_data_float", 4, params))
+	{
+		return false;
+	}
+
+	static key[MAX_KEY_LENGTH + 1],
+		s;
+
+	s = get_param(1);
+
+	// Invalid session.
+	if(!is_valid_sesion(s))
+	{
+		return false;
+	}
+	
+	get_string(3, key, charsmax(key));
+
+	return save_user_data_float(sessions[s][ss_handle], get_param(2), key, get_param_f(4));
+}
+
+public Float:native_get_user_data_float(plugin, params)
+{
+	if(!check_params("get_user_data_float", 3, params))
+	{
+		return Float:InvalidArgumentsGiven;
+	}
+
+	static key[MAX_KEY_LENGTH + 1],
+		s;
+
+	s = get_param(1);
+
+	// Invalid session.
+	if(!is_valid_sesion(s))
+	{
+		return Float:InvalidSessionGiven;
+	}
+	
+	get_string(3, key, charsmax(key));
+
+	return get_user_data_float(sessions[s][ss_handle], get_param(2), key);
+}
+
+public bool:native_save_user_data_char(plugin, params)
+{
+	if(!check_params("save_user_data_char", 4, params))
+	{
+		return false;
+	}
+
+	static key[MAX_KEY_LENGTH + 1],
+		value[MAX_KEY_LENGTH + 1],
+		s;
+
+	s = get_param(1);
+
+	// Invalid session.
+	if(!is_valid_sesion(s))
+	{
+		return false;
+	}
+	
+	get_string(3, key, charsmax(key));
+	get_string(4, value, charsmax(value));
+
+	return save_user_data_char(sessions[s][ss_handle], get_param(2), key, value);
 }
 
 public native_get_user_data_char(plugin, params)
 {
-	if(!check_params("get_user_data_char", 4, params))
+	if(!check_params("get_user_data_char", 5, params))
 	{
 		return InvalidArgumentsGiven;
 	}
@@ -295,14 +373,23 @@ public native_get_user_data_char(plugin, params)
 	static key[MAX_KEY_LENGTH + 1],
 		output[MAX_KEY_LENGTH + 1],
 		func_return,
-		length;
+		length,
+		s;
 
-	get_string(2, key, charsmax(key));
+	s = get_param(1);
 
-	length = get_param(4);
-	func_return = get_user_data_char(get_param(1), key, output, length);
+	// Invalid session.
+	if(!is_valid_sesion(s))
+	{
+		return InvalidSessionGiven;
+	}
+	
+	get_string(3, key, charsmax(key));
 
-	set_string(3, output, length);
+	length = get_param(5);
+	func_return = get_user_data_char(sessions[s][ss_handle], get_param(2), key, output, length);
+
+	set_string(4, output, length);
 
 	return func_return;
 }
@@ -323,20 +410,95 @@ public bool:native_escape_key(plugin, params)
 	return true;
 }
 
-/*		[ Functions ]		*/
-bool:should_save_now(now)
+public native_create_session(plugin, params)
 {
-	if(SaveType == SAVE_NEVER)
+	if(!check_params("create_session", 1, params))
+	{
+		return any:Invalid_JSON;
+	}
+
+	static name[MAX_KEY_LENGTH + 1];
+
+	get_string(1, name, charsmax(name));
+
+	// Session name is invalid.
+	if(!is_valid_session_name(name))
+	{
+		return any:Invalid_JSON;
+	}
+
+	sessions[active_sessions][ss_handle] = create_json(name);
+	sessions[active_sessions][ss_id] = active_sessions;
+	copy(sessions[active_sessions][ss_file], MAX_FILE_NAME, name);
+
+	return ++active_sessions;
+}
+
+public JSON:native_get_global_session(plugin, params)
+{
+	if(!check_params("get_global_session", 0, params))
+	{
+		return Invalid_JSON;
+	}
+
+	return sessions[0][ss_handle];
+}
+
+public bool:native_is_valid_session(plugin, params)
+{
+	if(!check_params("is_valid_session", 1, params))
 	{
 		return false;
 	}
 
-	if(SaveType & now)
+	return is_valid_sesion(get_param(1));
+}
+
+/*		[ Functions ]		*/
+bool:is_valid_sesion(session_id)
+{
+	if(session_id > MAX_SESSIONS)
 	{
-		return true;
+		return false;
 	}
 
-	return false;
+	if(session_id > active_sessions)
+	{
+		return false;
+	}
+
+	if(session_id < 0)
+	{
+		return false;
+	}
+
+	if(sessions[session_id][ss_handle] == Invalid_JSON)
+	{
+		return false;
+	}
+
+	return true;
+}
+
+bool:is_valid_session_name(name[])
+{
+	static length;
+
+	length = strlen(name);
+
+	// No name given.
+	if(!length)
+	{
+		return false;
+	}
+
+	// Name too long.
+	if(length > MAX_FILE_NAME)
+	{
+		return false;
+	}
+
+	return true;
 }
 
 stock bool:check_params(native_name[], required, given)
@@ -370,12 +532,12 @@ stock bool:check_params(native_name[], required, given)
  *
  *	@noreturn
  */
-save_json(JSON:handle, const file[])
+save_json(&JSON:handle, const file[])
 {
-	json_serial_to_file(json_handle, file, SavePretty);
+	json_serial_to_file(handle, file, SavePretty);
 	json_free(handle);
 
-	json_handle = create_json(file);
+	handle = create_json(file);
 }
 
 /**
@@ -428,38 +590,38 @@ stock escape_key(key[], length)
 }
 
 // Custom data functions.
-bool:save_data_int(key[], value)
+bool:save_data_int(JSON:s, key[], value)
 {
-	return json_object_set_number(json_handle, key, value, true);
+	return json_object_set_number(s, key, value, true);
 }
 
-get_data_int(key[])
+get_data_int(JSON:s, key[])
 {
-	return json_object_get_number(json_handle, key, true);
+	return json_object_get_number(s, key, true);
 }
 
-bool:save_data_float(key[], Float:value)
+bool:save_data_float(JSON:s, key[], Float:value)
 {
-	return json_object_set_real(json_handle, key, value, true);
+	return json_object_set_real(s, key, value, true);
 }
 
-Float:get_data_float(key[])
+Float:get_data_float(JSON:s, key[])
 {
-	return json_object_get_real(json_handle, key, true);
+	return json_object_get_real(s, key, true);
 }
 
-bool:save_data_char(key[], value[])
+bool:save_data_char(JSON:s, key[], value[])
 {
-	return bool:json_object_set_string(json_handle, key, value, true);
+	return bool:json_object_set_string(s, key, value, true);
 }
 
-get_data_char(key[], output[], output_length)
+get_data_char(JSON:s, key[], output[], output_length)
 {
-	return json_object_get_string(json_handle, key, output, output_length, true);
+	return json_object_get_string(s, key, output, output_length, true);
 }
 
 // User data functions
-bool:save_user_data_int(index, key[], value)
+bool:save_user_data_int(JSON:s, index, key[], value)
 {
 	if(!is_user_connected(index))
 	{
@@ -474,10 +636,10 @@ bool:save_user_data_int(index, key[], value)
 
 	format(new_key, charsmax(new_key), "%s.%s", new_key, key);
 
-	return json_object_set_number(json_handle, new_key, value, true);
+	return json_object_set_number(s, new_key, value, true);
 }
 
-get_user_data_int(index, key[])
+get_user_data_int(JSON:s, index, key[])
 {
 	if(!is_user_connected(index))
 	{
@@ -492,10 +654,10 @@ get_user_data_int(index, key[])
 
 	format(new_key, charsmax(new_key), "%s.%s", new_key, key);
 	
-	return json_object_get_number(json_handle, new_key, true);
+	return json_object_get_number(s, new_key, true);
 }
 
-bool:save_user_data_float(index, key[], Float:value)
+bool:save_user_data_float(JSON:s, index, key[], Float:value)
 {
 	if(!is_user_connected(index))
 	{
@@ -510,10 +672,10 @@ bool:save_user_data_float(index, key[], Float:value)
 
 	format(new_key, charsmax(new_key), "%s.%s", new_key, key);
 	
-	return json_object_set_real(json_handle, new_key, value, true);
+	return json_object_set_real(s, new_key, value, true);
 }
 
-Float:get_user_data_float(index, key[])
+Float:get_user_data_float(JSON:s, index, key[])
 {
 	if(!is_user_connected(index))
 	{
@@ -528,10 +690,10 @@ Float:get_user_data_float(index, key[])
 
 	format(new_key, charsmax(new_key), "%s.%s", new_key, key);
 	
-	return json_object_get_real(json_handle, new_key, true);
+	return json_object_get_real(s, new_key, true);
 }
 
-bool:save_user_data_char(index, key[], value[])
+bool:save_user_data_char(JSON:s, index, key[], value[])
 {
 	if(!is_user_connected(index))
 	{
@@ -546,10 +708,10 @@ bool:save_user_data_char(index, key[], value[])
 
 	format(new_key, charsmax(new_key), "%s.%s", new_key, key);
 	
-	return bool:json_object_set_string(json_handle, new_key, value, true);
+	return bool:json_object_set_string(s, new_key, value, true);
 }
 
-get_user_data_char(index, key[], output[], length)
+get_user_data_char(JSON:s, index, key[], output[], length)
 {
 	if(!is_user_connected(index))
 	{
@@ -564,5 +726,5 @@ get_user_data_char(index, key[], output[], length)
 
 	format(new_key, charsmax(new_key), "%s.%s", new_key, key);
 	
-	return json_object_get_string(json_handle, new_key, output, length, true);
+	return json_object_get_string(s, new_key, output, length, true);
 }
