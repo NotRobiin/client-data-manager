@@ -1,11 +1,3 @@
-/*	[ Setup ]	*/
-
-// Full path (base cstrike/) for the json file to be saved at.
-static const DefaultSaveFile[] = "addons/amxmodx/data/client_data.json";
-static const SaveFileFolder[] = "addons/amxmodx/data/";
-
-/*	[ Setup ]	*/
-
 #include <amxmodx>
 #include <json>
 #include <datamanager_const>
