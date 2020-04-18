@@ -3,13 +3,7 @@
 #endif
 #define _datamanager_included
 
-#define MAX_KEY_LENGTH 100
-#define MAX_FILE_NAME 90
-#define MAX_SESSIONS 10
-
-#if !defined Invalid_JSON
-#define Invalid_JSON -1
-#endif
+#include <datamanager_const>
 
 /** Creates json session from the specified folder.
  *

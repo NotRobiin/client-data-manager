@@ -8,6 +8,7 @@ static const SaveFileFolder[] = "addons/amxmodx/data/";
 
 #include <amxmodx>
 #include <json>
+#include <datamanager_const>
 
 #define AUTHOR "Wicked - amxx.pl/user/60210-wicked/"
 
@@ -15,10 +16,6 @@ static const SaveFileFolder[] = "addons/amxmodx/data/";
 
 #define ForRange(%1,%2,%3) for(new %1 = %2; %1 <= %3; %1++)
 #define ForArray(%1,%2) for(new %1 = 0; %1 < sizeof %2; %1++)
-
-#define MAX_KEY_LENGTH 100
-#define MAX_FILE_NAME 90
-#define MAX_SESSIONS 10
 
 enum _:ExceptionsEnumerator (+= 1337)
 {
