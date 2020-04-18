@@ -14,10 +14,11 @@
 /** Creates json session from the specified folder.
  *
  *  @param name File name to operate on.
+ *  @param pretty Whether to use JSON pretty string or not.
  *
  *  @return Session id if successful, Invalid_JSON if error occured.
  */
-native create_session(const name[]);
+native create_session(const name[], bool:pretty);
 
 /** Gets global session handle.
  *

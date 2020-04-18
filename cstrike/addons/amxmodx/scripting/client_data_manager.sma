@@ -4,9 +4,6 @@
 static const DefaultSaveFile[] = "addons/amxmodx/data/client_data.json";
 static const SaveFileFolder[] = "addons/amxmodx/data/";
 
-// Whether save json in the pretty style.
-static const bool:SavePretty = true;
-
 /*	[ Setup ]	*/
 
 #include <amxmodx>
@@ -34,7 +31,8 @@ enum _:SessionSettingsEnumerator (+= 1)
 {
 	JSON:ss_handle,
 	ss_id,
-	ss_file[MAX_FILE_NAME + 1]
+	ss_file[MAX_FILE_NAME + 1],
+	bool:ss_pretty
 };
 
 
@@ -421,14 +419,17 @@ public bool:native_escape_key(plugin, params)
 
 public native_create_session(plugin, params)
 {
-	if(!check_params("create_session", 1, params))
+	if(!check_params("create_session", 2, params))
 	{
 		return any:Invalid_JSON;
 	}
 
-	static name[MAX_KEY_LENGTH + 1];
+	static name[MAX_KEY_LENGTH + 1],
+		bool:pretty;
 
 	get_string(1, name, charsmax(name));
+	
+	pretty = bool:get_param(2);
 
 	// Session name is invalid.
 	if(!is_valid_session_name(name))
@@ -454,6 +455,7 @@ public native_create_session(plugin, params)
 
 	sessions[id][ss_handle] = create_json(name);
 	sessions[id][ss_id] = id;
+	sessions[id][ss_pretty] = pretty;
 	copy(sessions[id][ss_file], MAX_FILE_NAME, name);
 
 	return id;
@@ -558,7 +560,7 @@ stock bool:check_params(native_name[], required, given)
  */
 save_json(session_id)
 {
-	json_serial_to_file(sessions[session_id][ss_handle], sessions[session_id][ss_file], SavePretty);
+	json_serial_to_file(sessions[session_id][ss_handle], sessions[session_id][ss_file], sessions[session_id][ss_pretty]);
 	json_free(sessions[session_id][ss_handle]);
 }
 
