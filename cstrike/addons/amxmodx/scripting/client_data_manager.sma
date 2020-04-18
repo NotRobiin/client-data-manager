@@ -456,8 +456,6 @@ public native_create_session(plugin, params)
 	sessions[id][ss_id] = id;
 	copy(sessions[id][ss_file], MAX_FILE_NAME, name);
 
-	log_amx("Creating session: Name=^"%s^", id=%i", name, sessions[id][ss_id]);
-
 	return id;
 }
 
@@ -560,8 +558,6 @@ stock bool:check_params(native_name[], required, given)
  */
 save_json(session_id)
 {
-	log_amx("Saving file: %s (Handle: %i)!", sessions[session_id][ss_file], session_id);
-	
 	json_serial_to_file(sessions[session_id][ss_handle], sessions[session_id][ss_file], SavePretty);
 	json_free(sessions[session_id][ss_handle]);
 }
