@@ -4,7 +4,12 @@
 #define _datamanager_included
 
 #define MAX_KEY_LENGTH 100
-#define MAX_FILE_NAME 30
+#define MAX_FILE_NAME 90
+#define MAX_SESSIONS 10
+
+#if !defined Invalid_JSON
+#define Invalid_JSON -1
+#endif
 
 /** Creates json session from the specified folder.
  *
@@ -12,7 +17,7 @@
  *
  *  @return Session id if successful, Invalid_JSON if error occured.
  */
-native create_session(name[]);
+native create_session(const name[]);
 
 /** Gets global session handle.
  *
@@ -36,7 +41,7 @@ native bool:is_valid_session(session_id);
  *
  *  @return True if saved successfully, false otherwise.
  */
-native bool:save_data_int(JSON:session, key[], value);
+native bool:save_data_int(session, key[], value);
 
 /** Gets INT type of data.
  *
@@ -45,7 +50,7 @@ native bool:save_data_int(JSON:session, key[], value);
  *
  *  @return Int value assigned to key.
  */
-native get_data_int(key[]);
+native get_data_int(session, key[]);
 
 
 /** Saves FLOAT type of data.
@@ -56,7 +61,7 @@ native get_data_int(key[]);
  *
  *  @return True if saved successfully, false otherwise.
  */
-native bool:save_data_float(key[], Float:value);
+native bool:save_data_float(session, key[], Float:value);
 
 /** Gets FLOAT type of data.
  *
@@ -65,7 +70,7 @@ native bool:save_data_float(key[], Float:value);
  *
  *  @return Float value assigned to key.
  */
-native Float:get_data_float(key[]);
+native Float:get_data_float(session, key[]);
 
 
 /** Saves CHAR type of data.
@@ -76,7 +81,7 @@ native Float:get_data_float(key[]);
  *
  *  @return True if saved successfully, false otherwise.
  */
-native bool:save_data_char(key[], value[]);
+native bool:save_data_char(session, key[], value[]);
 
 /** Gets CHAR type of data.
  *
@@ -87,7 +92,7 @@ native bool:save_data_char(key[], value[]);
  *
  *  @noreturn
  */
-native get_data_char(key[], output[], output_length);
+native get_data_char(session, key[], output[], output_length);
 
 
 /** Saves INT type of data based on client's name.
@@ -99,7 +104,7 @@ native get_data_char(key[], output[], output_length);
  *
  *  @return True if saved successfully, false otherwise.
  */
-native bool:save_user_data_int(index, key[], value);
+native bool:save_user_data_int(session, index, key[], value);
 
 /** Gets INT type of data based on client's name.
  *
@@ -109,7 +114,7 @@ native bool:save_user_data_int(index, key[], value);
  *
  *  @return Int value assigned to key.
  */
-native get_user_data_int(index, key[]);
+native get_user_data_int(session, index, key[]);
 
 
 /** Saves FLOAT type of data based on client's name.
@@ -121,7 +126,7 @@ native get_user_data_int(index, key[]);
  *
  *  @return True if saved successfully, false otherwise.
  */
-native bool:save_user_data_float(index, key[], Float:value);
+native bool:save_user_data_float(session, index, key[], Float:value);
 
 /** Gets FLOAT type of data based on client's name.
  *
@@ -131,7 +136,7 @@ native bool:save_user_data_float(index, key[], Float:value);
  *
  *  @return Float value assigned to key.
  */
-native Float:get_user_data_float(index, key[]);
+native Float:get_user_data_float(session, index, key[]);
 
 
 /** Saves CHAR type of data based on client's name.
@@ -143,7 +148,7 @@ native Float:get_user_data_float(index, key[]);
  *
  *  @return True if saved successfully, false otherwise.
  */
-native bool:save_user_data_char(index, key[], value[]);
+native bool:save_user_data_char(session, index, key[], value[]);
 
 /** Gets CHAR type of data based on client's name.
  *
@@ -155,7 +160,7 @@ native bool:save_user_data_char(index, key[], value[]);
  *
  *  @noreturn
  */
-native get_user_data_char(index, key[], output[], length);
+native get_user_data_char(session, index, key[], output[], length);
 
 
 /** Escapes the key from forbidden characters.

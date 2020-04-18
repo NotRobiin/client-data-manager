@@ -2,6 +2,7 @@
 
 // Full path (base cstrike/) for the json file to be saved at.
 static const DefaultSaveFile[] = "addons/amxmodx/data/client_data.json";
+static const SaveFileFolder[] = "addons/amxmodx/data/";
 
 // Whether save json in the pretty style.
 static const bool:SavePretty = true;
@@ -19,7 +20,7 @@ static const bool:SavePretty = true;
 #define ForArray(%1,%2) for(new %1 = 0; %1 < sizeof %2; %1++)
 
 #define MAX_KEY_LENGTH 100
-#define MAX_FILE_NAME 30
+#define MAX_FILE_NAME 90
 #define MAX_SESSIONS 10
 
 enum _:ExceptionsEnumerator (+= 1337)
@@ -43,7 +44,7 @@ new sessions[MAX_SESSIONS + 1][SessionSettingsEnumerator],
 /*		[ Forwards ]		*/
 public plugin_init()
 {
-	register_plugin("Client data manager (JSON)", "v1.3", AUTHOR);
+	register_plugin("Client data manager (JSON)", "v1.6", AUTHOR);
 
 	// This is the global json session.
 	// It is used when you don't want to create a separate session
@@ -53,12 +54,15 @@ public plugin_init()
 	sessions[0][ss_id] = active_sessions;
 	copy(sessions[0][ss_file], MAX_FILE_NAME, DefaultSaveFile);
 	active_sessions++;
+}
 
+public plugin_precache()
+{
 	// Make sure rest of the sessions are set to invalid ones.
 	// Helps with "is_valid_session" function.
 	ForRange(i, 1, MAX_SESSIONS)
 	{
-		sessions[0][ss_handle] = Invalid_JSON;
+		sessions[i][ss_handle] = Invalid_JSON;
 	}
 }
 
@@ -91,9 +95,14 @@ public plugin_natives()
 
 public plugin_end()
 {
-	ForRange(i, 0, active_sessions - 1)
+	ForRange(i, 0, active_sessions  - 1)
 	{
-		save_json(sessions[i][ss_handle], DefaultSaveFile);
+		if(!is_valid_sesion(i))
+		{
+			continue;
+		}
+
+		save_json(sessions[i][ss_id]);
 	}
 }
 
@@ -426,12 +435,30 @@ public native_create_session(plugin, params)
 	{
 		return any:Invalid_JSON;
 	}
+	
+	// No file extension.
+	if(!equal(name[strlen(name) - 5], ".json"))
+	{
+		add(name, charsmax(name), ".json");
+	}
 
-	sessions[active_sessions][ss_handle] = create_json(name);
-	sessions[active_sessions][ss_id] = active_sessions;
-	copy(sessions[active_sessions][ss_file], MAX_FILE_NAME, name);
+	// Add the full path to the save folder.
+	if(containi(name, "addons") == -1)
+	{
+		format(name, charsmax(name), "%s%s", SaveFileFolder, name);
+	}
 
-	return ++active_sessions;
+	new id = active_sessions;
+
+	active_sessions++;
+
+	sessions[id][ss_handle] = create_json(name);
+	sessions[id][ss_id] = id;
+	copy(sessions[id][ss_file], MAX_FILE_NAME, name);
+
+	log_amx("Creating session: Name=^"%s^", id=%i", name, sessions[id][ss_id]);
+
+	return id;
 }
 
 public JSON:native_get_global_session(plugin, params)
@@ -528,16 +555,15 @@ stock bool:check_params(native_name[], required, given)
  *	Frees the handle after saving data.
  *
  *	@param handle	Valid json handle
- *	@param file 	Path to the save file
  *
  *	@noreturn
  */
-save_json(&JSON:handle, const file[])
+save_json(session_id)
 {
-	json_serial_to_file(handle, file, SavePretty);
-	json_free(handle);
-
-	handle = create_json(file);
+	log_amx("Saving file: %s (Handle: %i)!", sessions[session_id][ss_file], session_id);
+	
+	json_serial_to_file(sessions[session_id][ss_handle], sessions[session_id][ss_file], SavePretty);
+	json_free(sessions[session_id][ss_handle]);
 }
 
 /**
